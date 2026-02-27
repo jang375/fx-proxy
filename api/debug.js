@@ -5,7 +5,11 @@ function fetchRaw(url) {
         https.get(url, { rejectUnauthorized: false }, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
-            res.on('end', () => resolve({ status: res.statusCode, body: data }));
+            res.on('end', () => resolve({
+                status: res.statusCode,
+                location: res.headers.location || 'none',
+                body: data.substring(0, 500)
+            }));
         }).on('error', reject);
     });
 }
