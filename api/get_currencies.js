@@ -1,0 +1,54 @@
+// SSL 인증서 검증 우회 (수출입은행 서버 인증서 문제)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+const API_KEY = "Sd7tfpc2JHRTt91gTbsilFeNAaoz9N2S";
+const KEXIM_URL = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON";
+
+function fetchKexim(dateStr) {
+    const url = `${KEXIM_URL}?authkey=${API_KEY}&searchdate=${dateStr}&data=AP01`;
+    return fetch(url).then(res => res.json());
+}
+
+function todayStr() {
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    return now.getFullYear().toString() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0');
+}
+
+function subtractDays(dateStr, days) {
+    const y = parseInt(dateStr.substring(0, 4));
+    const m = parseInt(dateStr.substring(4, 6)) - 1;
+    const d = parseInt(dateStr.substring(6, 8));
+    const date = new Date(y, m, d - days);
+    return date.getFullYear().toString() +
+        String(date.getMonth() + 1).padStart(2, '0') +
+        String(date.getDate()).padStart(2, '0');
+}
+
+module.exports = async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    try {
+        for (let i = 0; i < 7; i++) {
+            const dateStr = subtractDays(todayStr(), i);
+            try {
+                const data = await fetchKexim(dateStr);
+                if (data && Array.isArray(data) && data.length > 0) {
+                    const currencies = data.map(item => ({
+                        code: item.cur_unit,
+                        name: item.cur_nm
+                    }));
+                    return res.status(200).json(currencies);
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+        return res.status(200).json([]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
